@@ -1,0 +1,3 @@
+[submodule "modules/patranished"]
+	path = modules/patranished
+	url = git@gitlab.com:valentin_baral/patranished.git
