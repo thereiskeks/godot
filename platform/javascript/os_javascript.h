@@ -52,6 +52,10 @@ class OS_JavaScript : public OS_Unix {
 	CursorShape cursor_shape;
 	Point2 touches[32];
 
+	Point2i last_click_pos;
+	uint64_t last_click_ms;
+	int last_click_button_index;
+
 	MainLoop *main_loop;
 	AudioDriverJavaScript audio_driver_javascript;
 
@@ -132,6 +136,10 @@ public:
 	virtual MainLoop *get_main_loop() const;
 	void run_async();
 	bool main_loop_iterate();
+
+	virtual Error execute(const String &p_path, const List<String> &p_arguments, bool p_blocking, ProcessID *r_child_id = NULL, String *r_pipe = NULL, int *r_exitcode = NULL, bool read_stderr = false);
+	virtual Error kill(const ProcessID &p_pid);
+	virtual int get_process_id() const;
 
 	virtual void alert(const String &p_alert, const String &p_title = "ALERT!");
 	virtual void set_window_title(const String &p_title);

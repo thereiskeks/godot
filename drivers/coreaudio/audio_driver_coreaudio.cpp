@@ -145,9 +145,6 @@ Error AudioDriverCoreAudio::init() {
 	unsigned int buffer_size = buffer_frames * channels;
 	samples_in.resize(buffer_size);
 	input_buf.resize(buffer_size);
-	input_buffer.resize(buffer_size * 8);
-	input_position = 0;
-	input_size = 0;
 
 	print_verbose("CoreAudio: detected " + itos(channels) + " channels");
 	print_verbose("CoreAudio: audio buffer frames: " + itos(buffer_frames) + " calculated latency: " + itos(buffer_frames * 1000 / mix_rate) + "ms");
@@ -162,7 +159,10 @@ Error AudioDriverCoreAudio::init() {
 	result = AudioUnitInitialize(audio_unit);
 	ERR_FAIL_COND_V(result != noErr, FAILED);
 
-	return capture_init();
+	if (GLOBAL_GET("audio/enable_audio_input")) {
+		return capture_init();
+	}
+	return OK;
 }
 
 OSStatus AudioDriverCoreAudio::output_callback(void *inRefCon,
@@ -487,6 +487,8 @@ void AudioDriverCoreAudio::capture_finish() {
 
 Error AudioDriverCoreAudio::capture_start() {
 
+	input_buffer_init(buffer_frames);
+
 	OSStatus result = AudioOutputUnitStart(input_unit);
 	if (result != noErr) {
 		ERR_PRINTS("AudioOutputUnitStart failed, code: " + itos(result));
@@ -685,22 +687,18 @@ String AudioDriverCoreAudio::capture_get_device() {
 
 #endif
 
-AudioDriverCoreAudio::AudioDriverCoreAudio() {
-	audio_unit = NULL;
-	input_unit = NULL;
-	active = false;
-	mutex = NULL;
-
-	mix_rate = 0;
-	channels = 2;
-	capture_channels = 2;
-
-	buffer_frames = 0;
-
+AudioDriverCoreAudio::AudioDriverCoreAudio() :
+		audio_unit(NULL),
+		input_unit(NULL),
+		active(false),
+		mutex(NULL),
+		device_name("Default"),
+		capture_device_name("Default"),
+		mix_rate(0),
+		channels(2),
+		capture_channels(2),
+		buffer_frames(0) {
 	samples_in.clear();
-
-	device_name = "Default";
-	capture_device_name = "Default";
 }
 
 AudioDriverCoreAudio::~AudioDriverCoreAudio(){};

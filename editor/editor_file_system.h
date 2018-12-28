@@ -116,7 +116,8 @@ class EditorFileSystem : public Node {
 			ACTION_DIR_REMOVE,
 			ACTION_FILE_ADD,
 			ACTION_FILE_REMOVE,
-			ACTION_FILE_TEST_REIMPORT
+			ACTION_FILE_TEST_REIMPORT,
+			ACTION_FILE_RELOAD
 		};
 
 		Action action;
@@ -203,8 +204,6 @@ class EditorFileSystem : public Node {
 	List<ItemAction> scan_actions;
 
 	bool _update_scan_actions();
-
-	static void _resource_saved(const String &p_path);
 
 	void _update_extensions();
 
