@@ -5,8 +5,8 @@
 /*                           GODOT ENGINE                                */
 /*                      https://godotengine.org                          */
 /*************************************************************************/
-/* Copyright (c) 2007-2018 Juan Linietsky, Ariel Manzur.                 */
-/* Copyright (c) 2014-2018 Godot Engine contributors (cf. AUTHORS.md)    */
+/* Copyright (c) 2007-2019 Juan Linietsky, Ariel Manzur.                 */
+/* Copyright (c) 2014-2019 Godot Engine contributors (cf. AUTHORS.md)    */
 /*                                                                       */
 /* Permission is hereby granted, free of charge, to any person obtaining */
 /* a copy of this software and associated documentation files (the       */
@@ -465,12 +465,11 @@ void RasterizerCanvasGLES2::_canvas_item_render_commands(Item *p_item, Item *cur
 					state.canvas_shader.use_material((void *)p_material);
 				}
 
-				Size2 abs_size = r->rect.size.abs();
 				Vector2 points[4] = {
 					r->rect.position,
-					r->rect.position + Vector2(abs_size.x, 0.0),
-					r->rect.position + abs_size,
-					r->rect.position + Vector2(0.0, abs_size.y),
+					r->rect.position + Vector2(r->rect.size.x, 0.0),
+					r->rect.position + r->rect.size,
+					r->rect.position + Vector2(0.0, r->rect.size.y),
 				};
 
 				if (r->rect.size.x < 0) {
@@ -496,6 +495,10 @@ void RasterizerCanvasGLES2::_canvas_item_render_commands(Item *p_item, Item *cur
 						src_rect.position + Vector2(0.0, src_rect.size.y),
 					};
 
+					if (r->flags & CANVAS_RECT_TRANSPOSE) {
+						SWAP(uvs[1], uvs[3]);
+					}
+
 					if (r->flags & CANVAS_RECT_FLIP_H) {
 						SWAP(uvs[0], uvs[1]);
 						SWAP(uvs[2], uvs[3]);
@@ -503,10 +506,6 @@ void RasterizerCanvasGLES2::_canvas_item_render_commands(Item *p_item, Item *cur
 					if (r->flags & CANVAS_RECT_FLIP_V) {
 						SWAP(uvs[0], uvs[3]);
 						SWAP(uvs[1], uvs[2]);
-					}
-
-					if (r->flags & CANVAS_RECT_TRANSPOSE) {
-						SWAP(uvs[1], uvs[3]);
 					}
 
 					state.canvas_shader.set_uniform(CanvasShaderGLES2::COLOR_TEXPIXEL_SIZE, texpixel_size);
@@ -1288,7 +1287,7 @@ void RasterizerCanvasGLES2::canvas_render_items(Item *p_item_list, int p_z, cons
 		}
 
 		int blend_mode = shader_cache ? shader_cache->canvas_item.blend_mode : RasterizerStorageGLES2::Shader::CanvasItem::BLEND_MODE_MIX;
-		bool unshaded = (shader_cache && blend_mode != RasterizerStorageGLES2::Shader::CanvasItem::BLEND_MODE_MIX);
+		bool unshaded = shader_cache && (shader_cache->canvas_item.light_mode == RasterizerStorageGLES2::Shader::CanvasItem::LIGHT_MODE_UNSHADED || (blend_mode != RasterizerStorageGLES2::Shader::CanvasItem::BLEND_MODE_MIX && blend_mode != RasterizerStorageGLES2::Shader::CanvasItem::BLEND_MODE_PMALPHA));
 		bool reclip = false;
 
 		if (last_blend_mode != blend_mode) {
@@ -1300,28 +1299,44 @@ void RasterizerCanvasGLES2::canvas_render_items(Item *p_item_list, int p_z, cons
 					if (storage->frame.current_rt && storage->frame.current_rt->flags[RasterizerStorage::RENDER_TARGET_TRANSPARENT]) {
 						glBlendFuncSeparate(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA, GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
 					} else {
-						glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+						glBlendFuncSeparate(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA, GL_ZERO, GL_ONE);
 					}
 
 				} break;
 				case RasterizerStorageGLES2::Shader::CanvasItem::BLEND_MODE_ADD: {
 
 					glBlendEquation(GL_FUNC_ADD);
-					glBlendFunc(GL_SRC_ALPHA, GL_ONE);
+					if (storage->frame.current_rt && storage->frame.current_rt->flags[RasterizerStorage::RENDER_TARGET_TRANSPARENT]) {
+						glBlendFuncSeparate(GL_SRC_ALPHA, GL_ONE, GL_SRC_ALPHA, GL_ONE);
+					} else {
+						glBlendFuncSeparate(GL_SRC_ALPHA, GL_ONE, GL_ZERO, GL_ONE);
+					}
 
 				} break;
 				case RasterizerStorageGLES2::Shader::CanvasItem::BLEND_MODE_SUB: {
 
 					glBlendEquation(GL_FUNC_REVERSE_SUBTRACT);
-					glBlendFunc(GL_SRC_ALPHA, GL_ONE);
+					if (storage->frame.current_rt && storage->frame.current_rt->flags[RasterizerStorage::RENDER_TARGET_TRANSPARENT]) {
+						glBlendFuncSeparate(GL_SRC_ALPHA, GL_ONE, GL_SRC_ALPHA, GL_ONE);
+					} else {
+						glBlendFuncSeparate(GL_SRC_ALPHA, GL_ONE, GL_ZERO, GL_ONE);
+					}
 				} break;
 				case RasterizerStorageGLES2::Shader::CanvasItem::BLEND_MODE_MUL: {
 					glBlendEquation(GL_FUNC_ADD);
-					glBlendFunc(GL_DST_COLOR, GL_ZERO);
+					if (storage->frame.current_rt && storage->frame.current_rt->flags[RasterizerStorage::RENDER_TARGET_TRANSPARENT]) {
+						glBlendFuncSeparate(GL_DST_COLOR, GL_ZERO, GL_DST_ALPHA, GL_ZERO);
+					} else {
+						glBlendFuncSeparate(GL_DST_COLOR, GL_ZERO, GL_ZERO, GL_ONE);
+					}
 				} break;
 				case RasterizerStorageGLES2::Shader::CanvasItem::BLEND_MODE_PMALPHA: {
 					glBlendEquation(GL_FUNC_ADD);
-					glBlendFunc(GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
+					if (storage->frame.current_rt && storage->frame.current_rt->flags[RasterizerStorage::RENDER_TARGET_TRANSPARENT]) {
+						glBlendFuncSeparate(GL_ONE, GL_ONE_MINUS_SRC_ALPHA, GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
+					} else {
+						glBlendFuncSeparate(GL_ONE, GL_ONE_MINUS_SRC_ALPHA, GL_ZERO, GL_ONE);
+					}
 				} break;
 			}
 		}
